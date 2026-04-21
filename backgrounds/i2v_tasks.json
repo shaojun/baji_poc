@@ -1,0 +1,64 @@
+{
+  "defbca0e-ef77-4aa5-a279-d82051fbd2cf": {
+    "status": "FAILED",
+    "prompt": "挥手示意后马上放下, 再俏皮微笑,原地转个圈,再抚摸头发,再做可爱鬼脸,再双手在头顶比心,再飞吻一个.",
+    "duration": 15,
+    "resolution": "720P",
+    "created_at": 1775719569.1245527,
+    "video_url": null,
+    "local_file": null,
+    "task_id": "defbca0e-ef77-4aa5-a279-d82051fbd2cf"
+  },
+  "c7bb9fe4-7de6-472c-b5a6-970f46b41e16": {
+    "status": "FAILED",
+    "prompt": "挥手示意后马上放下, 再俏皮微笑,原地转个圈,再抚摸头发,再做可爱鬼脸,再双手在头顶比心,再飞吻一个.",
+    "duration": 15,
+    "resolution": "720P",
+    "created_at": 1775720120.9937065,
+    "video_url": null,
+    "local_file": null,
+    "task_id": "c7bb9fe4-7de6-472c-b5a6-970f46b41e16",
+    "error_code": "InvalidParameter",
+    "error_message": "Field required: input.media"
+  },
+  "8048ef51-014b-46c2-9160-b4f3307097ab": {
+    "status": "SUCCEEDED",
+    "prompt": "挥手示意后马上放下, 再俏皮微笑,原地转个圈,再抚摸头发,再做可爱鬼脸,再双手在头顶比心,再飞吻一个.",
+    "duration": 15,
+    "resolution": "720P",
+    "created_at": 1775720952.9263928,
+    "video_url": "https://dashscope-a717.oss-accelerate.aliyuncs.com/1d/9c/20260409/b1fbde2b/59017412-metadata_01dbcfe63bd256d6.mp4?Expires=1775808401&OSSAccessKeyId=LTAI5tPxpiCM2hjmWrFXrym1&Signature=V66wnSSm%2BKGH8jrb0ICb%2Bc4g6EE%3D",
+    "local_file": "bg_8048ef51_1775722081.mp4",
+    "task_id": "8048ef51-014b-46c2-9160-b4f3307097ab"
+  },
+  "9c38e965-e85a-4b9c-ae49-1fbec4e25080": {
+    "status": "SUCCEEDED",
+    "prompt": "挥手示意后马上放下, 再俏皮微笑,原地转个圈,再抚摸头发,再做可爱鬼脸,再双手在头顶比心,再飞吻一个.",
+    "duration": 15,
+    "resolution": "720P",
+    "created_at": 1775721384.8185215,
+    "video_url": "https://dashscope-a717.oss-accelerate.aliyuncs.com/1d/53/20260409/207b99c8/97009014-metadata_56f877a53d40d07e.mp4?Expires=1775808376&OSSAccessKeyId=LTAI5tPxpiCM2hjmWrFXrym1&Signature=D%2FkfWVXKWit5Sxu8CBYpWn7oRCw%3D",
+    "local_file": "bg_9c38e965_1775722518.mp4",
+    "task_id": "9c38e965-e85a-4b9c-ae49-1fbec4e25080"
+  },
+  "65dfb975-f49f-49a8-afd1-5be56ccc3daf": {
+    "status": "SUCCEEDED",
+    "prompt": "挥手示意后马上放下, 再俏皮微笑,原地慢转1个圈,再抚摸头发,再做可爱鬼脸,再双手在头顶比心,再飞吻一个.",
+    "duration": 15,
+    "resolution": "720P",
+    "created_at": 1775722224.7749267,
+    "video_url": "https://dashscope-a717.oss-accelerate.aliyuncs.com/1d/01/20260409/207b99c8/81519150-metadata_15131ddcc8b32193.mp4?Expires=1775809126&OSSAccessKeyId=LTAI5tPxpiCM2hjmWrFXrym1&Signature=%2BIVZMEDgyNpN0lnITIlL1ryC4sE%3D",
+    "local_file": "bg_65dfb975_1775722841.mp4",
+    "task_id": "65dfb975-f49f-49a8-afd1-5be56ccc3daf"
+  },
+  "3af36f8b-5d90-4ea5-8e96-347e9b383592": {
+    "status": "UNKNOWN",
+    "prompt": "[全程镜头固定,保持和图片一致的距离和视角]挥手示意后马上放下, 再俏皮微笑,原地慢转1个圈,再抚摸头发,再做可爱鬼脸,再双手在头顶比心,再飞吻一个.",
+    "duration": 15,
+    "resolution": "720P",
+    "created_at": 1775722513.7410848,
+    "video_url": null,
+    "local_file": null,
+    "task_id": "3af36f8b-5d90-4ea5-8e96-347e9b383592"
+  }
+}

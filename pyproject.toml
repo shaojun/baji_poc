@@ -1,0 +1,17 @@
+[project]
+name = "baji-poc"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "dashscope>=1.25.16",
+    "fastapi>=0.135.3",
+    "httpx>=0.28.1",
+    "mutagen>=1.47.0",
+    "openai>=2.31.0",
+    "pillow>=12.2.0",
+    "pydub>=0.25.1",
+    "python-multipart>=0.0.24",
+    "uvicorn[standard]>=0.44.0",
+]

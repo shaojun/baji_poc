@@ -1,0 +1,1602 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BAJI — AI Companion</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:         #060a12;
+      --surface:    rgba(6, 14, 28, 0.88);
+      --border:     rgba(0, 212, 255, 0.18);
+      --border-hi:  rgba(0, 212, 255, 0.55);
+      --primary:    #00d4ff;
+      --secondary:  #7c3aed;
+      --accent:     #00ff88;
+      --warn:       #ff6b35;
+      --text:       #c8e8ff;
+      --text-dim:   #4a6a8a;
+      --text-mid:   #7aaccc;
+      --glow:       0 0 18px rgba(0,212,255,0.35), 0 0 40px rgba(0,212,255,0.12);
+      --glow-str:   0 0 24px rgba(0,212,255,0.7),  0 0 60px rgba(0,212,255,0.25);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; background: var(--bg); color: var(--text); font-family: 'Space Mono', monospace; font-size: 13px; overflow: hidden; }
+
+    body::before {
+      content: ''; position: fixed; inset: 0; z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 50% 100%, rgba(0,80,180,0.18) 0%, transparent 70%),
+        radial-gradient(ellipse 50% 40% at 80% 20%,  rgba(124,58,237,0.10) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 20% 80%,  rgba(0,212,255,0.07) 0%, transparent 65%);
+      pointer-events: none;
+    }
+    body::after {
+      content: ''; position: fixed; inset: 0; z-index: 0;
+      background-image: linear-gradient(rgba(0,212,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,255,0.025) 1px, transparent 1px);
+      background-size: 48px 48px; pointer-events: none;
+    }
+
+    /* ---------------------------------------------------------------- Layout */
+    #app { position: relative; z-index: 1; display: flex; flex-direction: column; width: 100%; height: 100%; }
+
+    #header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 24px; border-bottom: 1px solid var(--border);
+      background: var(--surface); backdrop-filter: blur(12px); flex-shrink: 0;
+    }
+    .logo { font-family: 'Orbitron', sans-serif; font-weight: 900; font-size: 20px; color: var(--primary); text-shadow: var(--glow); letter-spacing: 4px; }
+    .logo span { color: var(--text-mid); font-weight: 400; font-size: 11px; letter-spacing: 2px; margin-left: 10px; display: inline-block; vertical-align: middle; }
+    .header-right { display: flex; align-items: center; gap: 16px; }
+
+    #status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); box-shadow: 0 0 0 2px rgba(74,106,138,0.3); transition: all 0.4s; }
+    #status-dot.ready    { background: var(--accent);     box-shadow: 0 0 8px var(--accent); }
+    #status-dot.thinking { background: var(--secondary);  box-shadow: 0 0 8px var(--secondary); animation: pulse-dot 1s infinite; }
+    #status-dot.speaking { background: var(--primary);    box-shadow: 0 0 8px var(--primary);  animation: pulse-dot 0.6s infinite; }
+    #status-dot.error    { background: var(--warn);       box-shadow: 0 0 8px var(--warn); }
+    #status-label { font-size: 11px; color: var(--text-dim); letter-spacing: 1px; min-width: 120px; }
+
+    #btn-setup {
+      font-family: 'Orbitron', sans-serif; font-size: 10px; letter-spacing: 1.5px;
+      padding: 6px 14px; background: transparent; border: 1px solid var(--border-hi);
+      color: var(--primary); cursor: pointer; transition: all 0.2s;
+      clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+    }
+    #btn-setup:hover { background: rgba(0,212,255,0.08); box-shadow: var(--glow); }
+
+    /* ---------------------------------------------------------------- I2V Modal */
+    #i2v-modal {
+      display: none; position: fixed; inset: 0; z-index: 100;
+      background: rgba(4,8,18,0.88); backdrop-filter: blur(8px);
+      align-items: center; justify-content: center;
+    }
+    #i2v-modal.open { display: flex; }
+    #i2v-box {
+      width: min(740px, 95vw); max-height: 90vh; overflow-y: auto;
+      background: #070d1c; border: 1px solid var(--border-hi);
+      box-shadow: 0 0 60px rgba(0,212,255,0.12), 0 0 120px rgba(0,212,255,0.05);
+      display: flex; flex-direction: column;
+      clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%);
+    }
+    #i2v-box::-webkit-scrollbar { width: 3px; }
+    #i2v-box::-webkit-scrollbar-thumb { background: var(--border); }
+    .i2v-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 20px; border-bottom: 1px solid var(--border);
+      font-family: 'Orbitron', sans-serif; font-size: 12px; letter-spacing: 3px; color: var(--primary);
+      text-shadow: var(--glow); flex-shrink: 0;
+    }
+    .i2v-close { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 18px; line-height: 1; }
+    .i2v-close:hover { color: var(--warn); }
+    .i2v-body { padding: 20px; display: flex; flex-direction: column; gap: 18px; }
+    .i2v-section-label { font-family: 'Orbitron', sans-serif; font-size: 9px; letter-spacing: 2px; color: var(--text-dim); margin-bottom: 8px; }
+    .i2v-frames-row { display: flex; gap: 16px; }
+    .i2v-frame-slot {
+      flex: 1; border: 1px dashed var(--border-hi); min-height: 120px; cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 6px; transition: all 0.2s; padding: 12px; position: relative;
+    }
+    .i2v-frame-slot:hover, .i2v-frame-slot.has-file { background: rgba(0,212,255,0.04); border-color: var(--primary); }
+    .i2v-frame-slot .slot-label { font-size: 10px; color: var(--text-dim); letter-spacing: 1px; }
+    .i2v-frame-slot .slot-hint  { font-size: 9px; color: var(--text-dim); opacity: 0.6; }
+    .i2v-frame-slot img { max-height: 80px; max-width: 100%; object-fit: cover; border: 1px solid var(--border); }
+    .i2v-frame-slot .slot-clear {
+      display: none; position: absolute; top: 4px; right: 6px;
+      background: none; border: none; color: var(--warn); cursor: pointer; font-size: 14px;
+    }
+    .i2v-frame-slot.has-file .slot-clear { display: block; }
+    .i2v-input-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+    .i2v-field { display: flex; flex-direction: column; gap: 4px; }
+    .i2v-field label { font-size: 10px; color: var(--text-dim); letter-spacing: 1px; }
+    .i2v-field input, .i2v-field select {
+      background: rgba(0,212,255,0.04); border: 1px solid var(--border);
+      color: var(--text); font-family: 'Space Mono', monospace; font-size: 11px;
+      padding: 7px 10px; outline: none; transition: border-color 0.2s;
+    }
+    .i2v-field input:focus, .i2v-field select:focus { border-color: var(--border-hi); }
+    .i2v-field.grow { flex: 1; min-width: 200px; }
+    .i2v-field select option { background: #070d1c; }
+    #i2v-submit-btn {
+      font-family: 'Orbitron', sans-serif; font-size: 10px; letter-spacing: 2px;
+      padding: 10px 20px; background: rgba(0,212,255,0.1); border: 1px solid var(--border-hi);
+      color: var(--primary); cursor: pointer; transition: all 0.2s;
+      clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+      white-space: nowrap; align-self: flex-end;
+    }
+    #i2v-submit-btn:hover:not(:disabled) { background: rgba(0,212,255,0.2); box-shadow: var(--glow-str); }
+    #i2v-submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    #i2v-submit-msg { font-size: 11px; color: var(--text-dim); min-height: 14px; }
+    /* task list */
+    #i2v-task-list { display: flex; flex-direction: column; gap: 8px; }
+    .i2v-task-row {
+      display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+      border: 1px solid var(--border); background: rgba(0,212,255,0.02);
+      font-size: 11px; flex-wrap: wrap;
+    }
+    .i2v-task-id   { font-family: 'Orbitron', sans-serif; font-size: 9px; color: var(--text-dim); flex-shrink: 0; }
+    .i2v-task-status { padding: 2px 8px; font-size: 9px; letter-spacing: 1px; border: 1px solid; flex-shrink: 0; }
+    .i2v-task-status.PENDING   { border-color: var(--text-dim); color: var(--text-dim); }
+    .i2v-task-status.RUNNING   { border-color: var(--secondary); color: var(--secondary); animation: pulse-dot 1.2s infinite; }
+    .i2v-task-status.SUCCEEDED { border-color: var(--accent); color: var(--accent); }
+    .i2v-task-status.FAILED    { border-color: var(--warn); color: var(--warn); }
+    .i2v-task-status.CANCELED  { border-color: var(--text-dim); color: var(--text-dim); opacity: 0.6; }
+    .i2v-task-meta { flex: 1; color: var(--text-mid); font-size: 10px; }
+    .i2v-task-actions { display: flex; gap: 6px; flex-shrink: 0; }
+    .i2v-poll-btn, .i2v-set-idle-btn {
+      font-family: 'Orbitron', sans-serif; font-size: 9px; letter-spacing: 1px;
+      padding: 4px 10px; background: transparent; border: 1px solid var(--border);
+      cursor: pointer; transition: all 0.2s; color: var(--text-dim);
+    }
+    .i2v-poll-btn:hover    { border-color: var(--primary); color: var(--primary); }
+    .i2v-set-idle-btn      { border-color: var(--accent); color: var(--accent); }
+    .i2v-set-idle-btn:hover { background: rgba(0,255,136,0.1); }
+
+    #body { flex: 1; display: flex; overflow: hidden; position: relative; }
+
+    /* ---------------------------------------------------------------- History */
+    #history-panel {
+      width: 300px; flex-shrink: 0; border-right: 1px solid var(--border);
+      background: var(--surface); backdrop-filter: blur(12px); display: flex; flex-direction: column;
+    }
+    .panel-header { padding: 10px 16px; border-bottom: 1px solid var(--border); font-family: 'Orbitron', sans-serif; font-size: 10px; color: var(--text-dim); letter-spacing: 2px; display: flex; justify-content: space-between; align-items: center; }
+    #history-list { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+    #history-list::-webkit-scrollbar { width: 3px; }
+    #history-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .msg { display: flex; flex-direction: column; gap: 4px; }
+    .msg-label { font-size: 10px; letter-spacing: 1px; color: var(--text-dim); }
+    .msg-bubble { padding: 8px 12px; line-height: 1.6; font-size: 12px; }
+    .msg.user .msg-label  { color: var(--text-mid); text-align: right; }
+    .msg.user .msg-bubble { background: rgba(0,212,255,0.06); border-left: 2px solid var(--primary); color: var(--text); }
+    .msg.ai  .msg-label  { color: var(--secondary); }
+    .msg.ai  .msg-bubble { background: rgba(124,58,237,0.06); border-left: 2px solid var(--secondary); color: var(--text); }
+    .msg-meta { font-size: 10px; color: var(--text-dim); display: flex; gap: 8px; flex-wrap: wrap; }
+    .tag { padding: 1px 6px; background: rgba(0,212,255,0.06); border: 1px solid var(--border); color: var(--text-dim); font-size: 9px; letter-spacing: 0.5px; }
+
+    /* ---------------------------------------------------------------- Companion */
+    #companion-area { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+
+    #companion-frame {
+      position: relative; width: min(360px, 45vw); aspect-ratio: 1/1;
+      border-radius: 50%; overflow: hidden;
+    }
+    #companion-frame::before, #companion-frame::after { display: none; }
+    .frame-corner { display: none; }
+
+    .frame-border { position: absolute; inset: 0; z-index: 3; border: 2px solid var(--border); border-radius: 50%; box-shadow: inset 0 0 20px rgba(0,212,255,0.04); transition: border-color 0.4s, box-shadow 0.4s; pointer-events: none; }
+    .speaking .frame-border { border-color: var(--border-hi); box-shadow: inset 0 0 30px rgba(0,212,255,0.12), var(--glow-str), 0 0 0 6px rgba(0,212,255,0.10); animation: frame-pulse 1.2s ease-in-out infinite; }
+
+    #companion-img { width: 100%; height: 100%; object-fit: cover; display: block; position: relative; z-index: 1; transition: opacity 0.35s ease; }
+    .scanline { position: absolute; inset: 0; z-index: 4; background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,212,255,0.018) 3px, rgba(0,212,255,0.018) 4px); pointer-events: none; }
+    .scan-band { position: absolute; left: 0; right: 0; z-index: 5; height: 60px; background: linear-gradient(180deg, transparent 0%, rgba(0,212,255,0.06) 40%, rgba(0,212,255,0.10) 50%, rgba(0,212,255,0.06) 60%, transparent 100%); animation: scan 4s linear infinite; pointer-events: none; }
+    .nameplate { padding: 14px 0 4px; text-align: center; }
+    .nameplate-name { font-family: 'Orbitron', sans-serif; font-size: 16px; font-weight: 700; color: var(--primary); text-shadow: var(--glow); letter-spacing: 3px; }
+    .nameplate-sub  { font-size: 10px; color: var(--text-dim); letter-spacing: 1.5px; margin-top: 2px; }
+
+    #companion-status { display: flex; gap: 12px; align-items: center; margin-top: 14px; }
+    .stat-chip { display: flex; align-items: center; gap: 5px; padding: 4px 10px; border: 1px solid var(--border); background: rgba(0,212,255,0.04); font-size: 10px; letter-spacing: 1px; color: var(--text-dim); transition: all 0.3s; }
+    .stat-chip .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--text-dim); }
+    .stat-chip.active { border-color: var(--border-hi); color: var(--primary); }
+    .stat-chip.active .dot { background: var(--primary); box-shadow: 0 0 6px var(--primary); }
+
+    /* ---------------------------------------------------------------- Upload pane (inside frame) */
+    #upload-pane {
+      position: absolute; inset: 0; z-index: 10;
+      background: rgba(6, 10, 18, 0.96);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 20px; gap: 10px;
+    }
+    #upload-pane.hidden { display: none; }
+
+    .upload-title { font-family: 'Orbitron', sans-serif; font-size: 12px; font-weight: 700; color: var(--primary); letter-spacing: 3px; text-shadow: var(--glow); text-align: center; }
+    .upload-sub { font-size: 10px; color: var(--text-dim); letter-spacing: 0.5px; text-align: center; line-height: 1.7; }
+
+    #drop-zone {
+      width: 100%; flex: 1;
+      border: 1px dashed var(--border-hi);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+      cursor: pointer; transition: all 0.2s; padding: 16px;
+    }
+    #drop-zone:hover, #drop-zone.dragover { background: rgba(0,212,255,0.05); border-color: var(--primary); box-shadow: var(--glow); }
+    #drop-zone svg { width: 36px; height: 36px; color: var(--text-dim); }
+    .drop-text { font-size: 11px; color: var(--text-dim); line-height: 1.8; text-align: center; }
+    .drop-text strong { color: var(--primary); }
+    #file-input { display: none; }
+
+    #upload-preview { display: none; width: 100%; text-align: center; }
+    #upload-preview img { max-height: 110px; max-width: 100%; border: 1px solid var(--border); }
+    #preview-name { font-size: 9px; color: var(--text-dim); margin-top: 4px; }
+
+    #btn-upload {
+      width: 100%; font-family: 'Orbitron', sans-serif; font-size: 10px; letter-spacing: 2px;
+      padding: 12px; background: rgba(0,212,255,0.1); border: 1px solid var(--border-hi);
+      color: var(--primary); cursor: pointer; transition: all 0.2s;
+      clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+    }
+    #btn-upload:hover:not(:disabled) { background: rgba(0,212,255,0.2); box-shadow: var(--glow-str); }
+    #btn-upload:disabled { opacity: 0.4; cursor: not-allowed; }
+    #upload-progress { font-size: 10px; color: var(--text-dim); text-align: center; min-height: 14px; letter-spacing: 0.5px; }
+
+    /* ---------------------------------------------------------------- Right panel */
+    #info-panel { width: 220px; flex-shrink: 0; border-left: 1px solid var(--border); background: var(--surface); backdrop-filter: blur(12px); display: flex; flex-direction: column; }
+    .info-section { padding: 16px; border-bottom: 1px solid var(--border); }
+    .info-section-title { font-family: 'Orbitron', sans-serif; font-size: 9px; letter-spacing: 2px; color: var(--text-dim); margin-bottom: 10px; }
+    .info-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 11px; }
+    .info-row .k { color: var(--text-dim); }
+    .info-row .v { color: var(--primary); font-weight: 700; }
+
+    #audio-viz { display: flex; align-items: flex-end; gap: 2px; height: 32px; }
+    .viz-bar { width: 4px; border-radius: 2px; background: var(--primary); height: 4px; animation: viz-idle 2s ease-in-out infinite; }
+    .viz-bar:nth-child(2) { animation-delay: 0.2s; } .viz-bar:nth-child(3) { animation-delay: 0.4s; } .viz-bar:nth-child(4) { animation-delay: 0.6s; }
+    .viz-bar:nth-child(5) { animation-delay: 0.8s; } .viz-bar:nth-child(6) { animation-delay: 1.0s; } .viz-bar:nth-child(7) { animation-delay: 0.3s; } .viz-bar:nth-child(8) { animation-delay: 0.7s; }
+    .viz-bar.active { animation: viz-active 0.3s ease-in-out infinite alternate; }
+
+    /* ---------------------------------------------------------------- Footer */
+    #footer { flex-shrink: 0; padding: 16px 28px; border-top: 1px solid var(--border); background: var(--surface); backdrop-filter: blur(12px); display: flex; align-items: center; gap: 16px; }
+
+    #mic-btn { width: 64px; height: 64px; border-radius: 50%; background: transparent; border: 2px solid var(--primary); color: var(--primary); cursor: pointer; position: relative; display: flex; align-items: center; justify-content: center; transition: all 0.2s; box-shadow: var(--glow); flex-shrink: 0; }
+    #mic-btn:hover { background: rgba(0,212,255,0.08); box-shadow: var(--glow-str); }
+    #mic-btn.recording { border-color: var(--warn); color: var(--warn); box-shadow: 0 0 20px rgba(255,107,53,0.5); animation: rec-pulse 1s ease-in-out infinite; }
+    #mic-btn.disabled  { opacity: 0.35; cursor: not-allowed; }
+    #mic-btn svg { width: 24px; height: 24px; }
+    #mic-btn.recording::before { content: ''; position: absolute; inset: -8px; border-radius: 50%; border: 1px solid var(--warn); opacity: 0; animation: ripple-ring 1.4s ease-out infinite; }
+
+    #text-input-row { flex: 1; display: flex; gap: 8px; align-items: center; }
+    #text-input { flex: 1; background: rgba(0,212,255,0.04); border: 1px solid var(--border); color: var(--text); font-family: 'Space Mono', monospace; font-size: 12px; padding: 10px 14px; outline: none; transition: border-color 0.2s; }
+    #text-input::placeholder { color: var(--text-dim); }
+    #text-input:focus { border-color: var(--border-hi); }
+    #send-btn { font-family: 'Orbitron', sans-serif; font-size: 10px; letter-spacing: 1.5px; padding: 10px 20px; background: rgba(0,212,255,0.08); border: 1px solid var(--border-hi); color: var(--primary); cursor: pointer; transition: all 0.2s; clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%); }
+    #send-btn:hover { background: rgba(0,212,255,0.18); box-shadow: var(--glow); }
+    #footer-status { font-size: 11px; color: var(--text-dim); min-width: 180px; letter-spacing: 0.5px; }
+
+    /* ---------------------------------------------------------------- Animations */
+    @keyframes scan { 0% { top: -60px; opacity: 0; } 5% { opacity: 1; } 95% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
+    @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    @keyframes frame-pulse { 0%, 100% { box-shadow: inset 0 0 30px rgba(0,212,255,0.12), var(--glow); } 50% { box-shadow: inset 0 0 50px rgba(0,212,255,0.22), var(--glow-str); } }
+    @keyframes expr-flash { 0%, 100% { border-color: rgba(255,180,0,0.40); box-shadow: 0 0 14px rgba(255,180,0,0.20), 0 0 0 6px rgba(255,180,0,0.10); } 50% { border-color: rgba(255,180,0,0.90); box-shadow: 0 0 32px rgba(255,180,0,0.60), inset 0 0 20px rgba(255,180,0,0.08), 0 0 0 10px rgba(255,180,0,0.18); } }
+    #companion-frame.expressing .frame-border { border: 3px solid rgba(255,180,0,0.55); border-radius: 50%; animation: expr-flash 2.5s ease-in-out infinite; }
+    @keyframes rec-pulse { 0%, 100% { box-shadow: 0 0 20px rgba(255,107,53,0.5); } 50% { box-shadow: 0 0 40px rgba(255,107,53,0.8); } }
+    @keyframes ripple-ring { 0% { inset: -8px; opacity: 0.7; } 100% { inset: -24px; opacity: 0; } }
+    @keyframes viz-idle   { 0%, 100% { height: 4px; } 50% { height: 10px; } }
+    @keyframes viz-active { from { height: 6px; } to { height: 28px; } }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-in { animation: fadeIn 0.3s ease forwards; }
+
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .typing::after { content: '▌'; color: var(--primary); animation: blink 1s step-end infinite; }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+    /* ---------------------------------------------------------------- I2V Tabs */
+    .i2v-tabs { display: flex; border-bottom: 1px solid var(--border); padding: 0 20px; gap: 2px; background: rgba(0,212,255,0.02); flex-shrink: 0; }
+    .i2v-tab-btn {
+      font-family: 'Orbitron', sans-serif; font-size: 9px; letter-spacing: 1.5px;
+      padding: 10px 16px; background: transparent; border: none;
+      border-bottom: 2px solid transparent; color: var(--text-dim);
+      cursor: pointer; transition: all 0.2s; margin-bottom: -1px;
+    }
+    .i2v-tab-btn:hover { color: var(--primary); }
+    .i2v-tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+    .i2v-tab-panel { display: none; }
+    .i2v-tab-panel.active { display: block; }
+
+    /* ---------------------------------------------------------------- File Browser */
+    .file-browser { display: flex; flex-direction: column; gap: 5px; }
+    .file-browser-row {
+      display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+      border: 1px solid var(--border); background: rgba(0,212,255,0.02);
+      font-size: 11px; transition: background 0.2s;
+    }
+    .file-browser-row:hover { background: rgba(0,212,255,0.04); }
+    .file-fname { flex: 1; color: var(--text); font-size: 10px; word-break: break-all; min-width: 0; }
+    .file-fsize { color: var(--text-dim); font-size: 9px; flex-shrink: 0; min-width: 58px; text-align: right; }
+    .file-ftype { padding: 1px 6px; font-size: 9px; letter-spacing: 1px; border: 1px solid; flex-shrink: 0; }
+    .file-ftype.mp4  { border-color: var(--accent);   color: var(--accent); }
+    .file-ftype.img  { border-color: var(--secondary); color: var(--secondary); }
+    .file-ftype.json { border-color: var(--text-dim);  color: var(--text-dim); }
+    .file-ftype.other{ border-color: var(--text-dim);  color: var(--text-dim); }
+    .file-del-btn {
+      font-family: 'Orbitron', sans-serif; font-size: 9px; padding: 3px 8px;
+      background: transparent; border: 1px solid var(--warn); color: var(--warn);
+      cursor: pointer; flex-shrink: 0; transition: background 0.2s;
+    }
+    .file-del-btn:hover { background: rgba(255,107,53,0.12); }
+    .file-idle-btn {
+      font-family: 'Orbitron', sans-serif; font-size: 9px; padding: 3px 8px;
+      background: transparent; border: 1px solid var(--accent); color: var(--accent);
+      cursor: pointer; flex-shrink: 0; transition: background 0.2s;
+    }
+    .file-idle-btn:hover { background: rgba(0,255,136,0.10); }
+    .file-play-btn {
+      font-family: 'Orbitron', sans-serif; font-size: 9px; padding: 3px 8px;
+      background: transparent; border: 1px solid var(--primary); color: var(--primary);
+      cursor: pointer; flex-shrink: 0; transition: background 0.2s;
+    }
+    .file-play-btn:hover { background: rgba(0,212,255,0.10); }
+    .file-dl-btn {
+      font-family: 'Orbitron', sans-serif; font-size: 9px; padding: 3px 8px;
+      background: transparent; border: 1px solid var(--text-mid); color: var(--text-mid);
+      cursor: pointer; flex-shrink: 0; transition: background 0.2s;
+    }
+    .file-dl-btn:hover { background: rgba(122,172,204,0.10); }
+    .file-upload-btn {
+      font-family: 'Orbitron', sans-serif; font-size: 9px; letter-spacing: 1px;
+      padding: 5px 12px; background: rgba(0,212,255,0.06); border: 1px solid var(--border-hi);
+      color: var(--primary); cursor: pointer; flex-shrink: 0; transition: all 0.2s;
+      clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%);
+    }
+    .file-upload-btn:hover { background: rgba(0,212,255,0.16); box-shadow: var(--glow); }
+
+    /* ---------------------------------------------------------------- Settings Button */
+    #btn-settings {
+      font-family: 'Orbitron', sans-serif; font-size: 10px; letter-spacing: 1.5px;
+      padding: 6px 14px; background: transparent; border: 1px solid var(--border);
+      color: var(--text-dim); cursor: pointer; transition: all 0.2s;
+      clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+    }
+    #btn-settings:hover { border-color: var(--border-hi); color: var(--primary); background: rgba(0,212,255,0.05); }
+
+    /* ---------------------------------------------------------------- Settings Modal */
+    #settings-modal {
+      display: none; position: fixed; inset: 0; z-index: 200;
+      background: rgba(4,8,18,0.88); backdrop-filter: blur(8px);
+      align-items: center; justify-content: center;
+    }
+    #settings-modal.open { display: flex; }
+    #settings-box {
+      width: min(560px, 95vw); max-height: 90vh; overflow-y: auto;
+      background: #070d1c; border: 1px solid var(--border-hi);
+      box-shadow: 0 0 60px rgba(0,212,255,0.12), 0 0 120px rgba(0,212,255,0.05);
+      display: flex; flex-direction: column;
+      clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%);
+    }
+    #settings-box::-webkit-scrollbar { width: 3px; }
+    #settings-box::-webkit-scrollbar-thumb { background: var(--border); }
+    .settings-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 20px; border-bottom: 1px solid var(--border);
+      font-family: 'Orbitron', sans-serif; font-size: 12px; letter-spacing: 3px; color: var(--primary);
+      text-shadow: var(--glow); flex-shrink: 0;
+    }
+    .settings-close { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 18px; line-height: 1; }
+    .settings-close:hover { color: var(--warn); }
+    .settings-body { padding: 20px; display: flex; flex-direction: column; gap: 0; }
+    .settings-group {
+      padding: 16px 0; border-bottom: 1px solid var(--border);
+    }
+    .settings-group:last-child { border-bottom: none; padding-bottom: 0; }
+    .settings-group-title {
+      font-family: 'Orbitron', sans-serif; font-size: 9px; letter-spacing: 2px;
+      color: var(--primary); margin-bottom: 14px; opacity: 0.8;
+    }
+    .settings-param {
+      display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px;
+    }
+    .settings-param:last-child { margin-bottom: 0; }
+    .settings-param-header {
+      display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+    }
+    .settings-param-name {
+      font-family: 'Orbitron', sans-serif; font-size: 10px; letter-spacing: 1px; color: var(--text);
+    }
+    .settings-param-value {
+      font-family: 'Space Mono', monospace; font-size: 11px; color: var(--primary);
+      min-width: 52px; text-align: right; flex-shrink: 0;
+    }
+    .settings-param-desc {
+      font-size: 10px; color: var(--text-dim); line-height: 1.65; letter-spacing: 0.3px;
+    }
+    .settings-param-impact {
+      font-size: 9px; color: var(--text-dim); opacity: 0.6; line-height: 1.5;
+      padding: 5px 8px; border-left: 2px solid var(--border); margin-top: 2px;
+    }
+    .settings-slider {
+      -webkit-appearance: none; appearance: none;
+      width: 100%; height: 3px; background: var(--border);
+      outline: none; border-radius: 2px; cursor: pointer;
+    }
+    .settings-slider::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 14px; height: 14px; border-radius: 50%;
+      background: var(--primary); box-shadow: 0 0 6px var(--primary);
+      cursor: pointer;
+    }
+    .settings-slider::-moz-range-thumb {
+      width: 14px; height: 14px; border-radius: 50%;
+      background: var(--primary); box-shadow: 0 0 6px var(--primary);
+      cursor: pointer; border: none;
+    }
+    .settings-reset-btn {
+      font-family: 'Orbitron', sans-serif; font-size: 9px; letter-spacing: 1px;
+      padding: 6px 14px; background: transparent; border: 1px solid var(--border);
+      color: var(--text-dim); cursor: pointer; transition: all 0.2s; margin-top: 4px; align-self: flex-start;
+    }
+    .settings-reset-btn:hover { border-color: var(--warn); color: var(--warn); }
+  </style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- Header -->
+  <div id="header">
+    <div class="logo">BAJI<span>AI COMPANION SYSTEM v0.1</span></div>
+    <div class="header-right">
+      <div id="status-dot"></div>
+      <div id="status-label">INITIALISING...</div>
+      <button id="btn-settings" onclick="openSettingsModal()">⚙ SETTINGS</button>
+      <button id="btn-setup" onclick="openI2VModal()">⊕ CHANGE CHARACTER</button>
+    </div>
+  </div>
+
+  <!-- Body -->
+  <div id="body">
+
+    <!-- History Panel -->
+    <div id="history-panel">
+      <div class="panel-header">
+        <span>CONVERSATION LOG</span>
+        <span id="turn-count" style="color:var(--primary)">0 TURNS</span>
+      </div>
+      <div id="history-list"></div>
+    </div>
+
+    <!-- Companion Display -->
+    <div id="companion-area">
+      <div id="companion-frame">
+        <div class="frame-border"></div>
+
+        <!-- ── Upload Pane (inline, no overlay) ── -->
+        <div id="upload-pane" class="hidden">
+          <div class="upload-title">INITIALIZE COMPANION</div>
+          <p class="upload-sub">Upload a portrait — the system will generate<br>visual states for all emotions &amp; poses.</p>
+
+          <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M12 16V8m0 0-3 3m3-3 3 3M6.5 19.5h11a2 2 0 002-2V10l-5-5H6.5a2 2 0 00-2 2v10.5a2 2 0 002 2z"/>
+            </svg>
+            <p class="drop-text">Drag & drop portrait here<br>or <strong>click to browse</strong><br><span style="font-size:9px;opacity:0.5">JPG/PNG/WEBP · recommended</span></p>
+          </div>
+          <input type="file" id="file-input" accept="image/*">
+
+          <div id="upload-preview">
+            <img id="preview-img" src="" alt="Preview">
+            <div id="preview-name"></div>
+          </div>
+
+          <button id="btn-upload" disabled>GENERATE CHARACTER STATES</button>
+          <div id="upload-progress"></div>
+        </div>
+
+        <!-- ── Character Image (shown after upload) ── -->
+        <img id="companion-img" src="" alt="AI Companion" style="display:none" crossorigin="anonymous">
+        <!-- ── Idle loop video (always behind, z-index:1) ── -->
+        <video id="idle-video" loop muted playsinline style="width:100%;height:100%;object-fit:contain;display:none;position:absolute;top:0;left:0;z-index:1;transition:opacity 0.55s ease;"></video>
+        <!-- ── Expression video (on top, z-index:2) ── -->
+        <video id="companion-video" muted playsinline style="width:100%;height:100%;object-fit:contain;display:none;position:absolute;top:0;left:0;z-index:2;transition:opacity 0.55s ease;"></video>
+
+        <div class="scanline"></div>
+        <div class="scan-band"></div>
+      </div>
+
+      <!-- Nameplate (outside circle) -->
+      <div class="nameplate">
+        <div class="nameplate-name" id="companion-name">BAJI</div>
+        <div class="nameplate-sub"  id="companion-sub">OFFLINE</div>
+      </div>
+
+      <!-- Status chips -->
+      <div id="companion-status">
+        <div class="stat-chip" id="chip-expr"><span class="dot"></span><span id="chip-expr-val">neutral</span></div>
+        <div class="stat-chip" id="chip-pose"><span class="dot"></span><span id="chip-pose-val">idle</span></div>
+        <div class="stat-chip" id="chip-dur" ><span class="dot"></span><span id="chip-dur-val">—</span></div>
+      </div>
+    </div>
+
+    <!-- Info Panel -->
+    <div id="info-panel">
+      <div class="info-section">
+        <div class="info-section-title">SIGNAL MONITOR</div>
+        <div id="audio-viz">
+          <div class="viz-bar"></div><div class="viz-bar"></div><div class="viz-bar"></div>
+          <div class="viz-bar"></div><div class="viz-bar"></div><div class="viz-bar"></div>
+          <div class="viz-bar"></div><div class="viz-bar"></div>
+        </div>
+      </div>
+      <div class="info-section">
+        <div class="info-section-title">LAST RESPONSE</div>
+        <div class="info-row"><span class="k">EXPRESSION</span><span class="v" id="info-expr">—</span></div>
+        <div class="info-row"><span class="k">POSE</span><span class="v" id="info-pose">—</span></div>
+        <div class="info-row"><span class="k">SPEECH ~</span><span class="v" id="info-secs">—</span></div>
+        <div class="info-row"><span class="k">VIDEO FILE</span><span class="v" id="info-vfile" style="font-size:9px;word-break:break-all">—</span></div>
+      </div>
+      <div class="info-section">
+        <div class="info-section-title">PIPELINE</div>
+        <div class="info-row"><span class="k">ASR</span><span class="v" id="pipe-asr">—</span></div>
+        <div class="info-row"><span class="k">LLM</span><span class="v" id="pipe-llm">—</span></div>
+        <div class="info-row"><span class="k">TTS</span><span class="v" id="pipe-tts">—</span></div>
+      </div>
+      <div class="info-section" style="flex:1">
+        <div class="info-section-title">CHARACTER</div>
+        <div class="info-row"><span class="k">ID</span><span class="v" id="char-id-display">—</span></div>
+        <div class="info-row"><span class="k">STATES</span><span class="v" id="char-states">—</span></div>
+        <div class="info-row"><span class="k">STATUS</span><span class="v" id="char-status">OFFLINE</span></div>
+      </div>
+    </div>
+
+  </div><!-- /body -->
+
+  <!-- Footer -->
+  <div id="footer">
+    <button id="mic-btn" class="disabled" title="Hold to record">
+      <svg id="icon-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <rect x="9" y="2" width="6" height="11" rx="3"/>
+        <path d="M5 10a7 7 0 0014 0M12 19v3M9 22h6"/>
+      </svg>
+      <svg id="icon-stop" viewBox="0 0 24 24" fill="currentColor" style="display:none">
+        <rect x="6" y="6" width="12" height="12" rx="2"/>
+      </svg>
+    </button>
+    <div id="text-input-row">
+      <input type="text" id="text-input" placeholder="或直接输入文字 / type a message..." disabled>
+      <button id="send-btn" disabled onclick="sendText()">SEND</button>
+    </div>
+    <div id="footer-status">WAITING FOR CHARACTER...</div>
+  </div>
+
+</div><!-- /app -->
+
+<!-- ================================================================ Settings Modal -->
+<div id="settings-modal">
+  <div id="settings-box">
+    <div class="settings-header">
+      ⚙ SYSTEM SETTINGS
+      <button class="settings-close" onclick="closeSettingsModal()" title="Close">✕</button>
+    </div>
+    <div class="settings-body">
+
+      <!-- Group: Video Transition -->
+      <div class="settings-group">
+        <div class="settings-group-title">VIDEO TRANSITION</div>
+
+        <div class="settings-param">
+          <div class="settings-param-header">
+            <span class="settings-param-name">POST-AUDIO IDLE DELAY</span>
+            <span class="settings-param-value" id="val-postAudioDelay">800 ms</span>
+          </div>
+          <input type="range" class="settings-slider" id="sl-postAudioDelay"
+            min="0" max="3000" step="50"
+            oninput="updateSetting('postAudioDelay', this.value, 'val-postAudioDelay', 'ms')">
+          <div class="settings-param-desc">
+            How long to wait after the audio finishes playing before switching the companion back to the idle video.
+          </div>
+          <div class="settings-param-impact">
+            ↑ Higher — companion holds the expression pose longer after speaking, feeling more deliberate.<br>
+            ↓ Lower — switches back to idle almost instantly after speech ends, feeling snappier.
+          </div>
+        </div>
+
+        <div class="settings-param">
+          <div class="settings-param-header">
+            <span class="settings-param-name">EXPRESSION → IDLE FADE</span>
+            <span class="settings-param-value" id="val-exprFadeOut">0.80 s</span>
+          </div>
+          <input type="range" class="settings-slider" id="sl-exprFadeOut"
+            min="0.1" max="4.0" step="0.05"
+            oninput="updateSetting('exprFadeOut', this.value, 'val-exprFadeOut', 's', 2)">
+          <div class="settings-param-desc">
+            Duration of the opacity crossfade from the expression video to the idle loop video.
+          </div>
+          <div class="settings-param-impact">
+            ↑ Higher — slow, cinematic dissolve; works well for calm or emotional scenes.<br>
+            ↓ Lower — quick cut-like transition; feels more immediate and energetic.
+          </div>
+        </div>
+
+        <div class="settings-param">
+          <div class="settings-param-header">
+            <span class="settings-param-name">EXPRESSION FADE-IN TRANSITION</span>
+            <span class="settings-param-value" id="val-exprFadeIn">0.55 s</span>
+          </div>
+          <input type="range" class="settings-slider" id="sl-exprFadeIn"
+            min="0.05" max="2.0" step="0.05"
+            oninput="updateSetting('exprFadeIn', this.value, 'val-exprFadeIn', 's', 2)">
+          <div class="settings-param-desc">
+            CSS transition duration applied when the expression video fades <em>in</em> over the idle layer at the start of a response.
+          </div>
+          <div class="settings-param-impact">
+            ↑ Higher — soft, gradual appearance; good when video content is gentle.<br>
+            ↓ Lower — near-instant reveal; the expression video appears immediately on new response.
+          </div>
+        </div>
+      </div>
+
+      <!-- Group: Audio -->
+      <div class="settings-group">
+        <div class="settings-group-title">AUDIO</div>
+
+        <div class="settings-param">
+          <div class="settings-param-header">
+            <span class="settings-param-name">AUDIO VOLUME</span>
+            <span class="settings-param-value" id="val-audioVolume">100 %</span>
+          </div>
+          <input type="range" class="settings-slider" id="sl-audioVolume"
+            min="0" max="100" step="1"
+            oninput="updateSetting('audioVolume', this.value, 'val-audioVolume', '%')">
+          <div class="settings-param-desc">
+            Playback volume for the companion's synthesised speech audio.
+          </div>
+          <div class="settings-param-impact">
+            ↑ Higher — louder voice output.<br>
+            ↓ Lower — quieter; set to 0 to mute speech entirely while still animating.
+          </div>
+        </div>
+      </div>
+
+      <!-- Group: UI Behaviour -->
+      <div class="settings-group">
+        <div class="settings-group-title">UI BEHAVIOUR</div>
+
+        <div class="settings-param">
+          <div class="settings-param-header">
+            <span class="settings-param-name">STATUS CHIP HIGHLIGHT DURATION</span>
+            <span class="settings-param-value" id="val-chipHighlightMs">3000 ms</span>
+          </div>
+          <input type="range" class="settings-slider" id="sl-chipHighlightMs"
+            min="500" max="8000" step="100"
+            oninput="updateSetting('chipHighlightMs', this.value, 'val-chipHighlightMs', 'ms')">
+          <div class="settings-param-desc">
+            How long the EXPR / POSE / TIME chips in the companion area stay highlighted after each response.
+          </div>
+          <div class="settings-param-impact">
+            ↑ Higher — chips glow longer, easier to notice on each turn.<br>
+            ↓ Lower — chips dim quickly, reducing visual noise during rapid conversation.
+          </div>
+        </div>
+      </div>
+
+      <button class="settings-reset-btn" onclick="resetSettings()">↺ RESET TO DEFAULTS</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================ I2V Modal -->
+<div id="i2v-modal">
+  <div id="i2v-box">
+    <div class="i2v-header">
+      ⊕ CHANGE CHARACTER
+      <button class="i2v-close" onclick="closeI2VModal()" title="Close">✕</button>
+    </div>
+
+    <!-- Tabs -->
+    <div class="i2v-tabs">
+      <button class="i2v-tab-btn active" data-tab="generate" onclick="switchI2VTab('generate')">IMAGE → VIDEO</button>
+      <button class="i2v-tab-btn" data-tab="files" onclick="switchI2VTab('files')">CHARACTER FILES</button>
+    </div>
+
+    <!-- ── Tab: Generate ── -->
+    <div id="i2v-tab-generate" class="i2v-tab-panel active">
+      <div class="i2v-body">
+
+        <!-- API Key -->
+        <div>
+          <div class="i2v-section-label">API KEY</div>
+          <div class="i2v-field" style="width:100%">
+            <label>DASHSCOPE API KEY (used only for this generator; must provide explicitly)</label>
+            <input type="password" id="i2v-api-key" placeholder="sk-... " autocomplete="off" style="width:100%">
+          </div>
+        </div>
+
+        <!-- Frame upload -->
+        <div>
+          <div class="i2v-section-label">FRAME INPUT</div>
+          <div class="i2v-frames-row">
+            <!-- First frame (required) -->
+            <div class="i2v-frame-slot" id="slot-first" onclick="triggerFrameInput('first')">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-dim)">
+                <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+                <path d="M21 15l-5-5L5 21"/>
+              </svg>
+              <span class="slot-label">FIRST FRAME <span style="color:var(--warn)">*</span></span>
+              <span class="slot-hint">required</span>
+              <button class="slot-clear" onclick="clearFrame(event,'first')" title="Remove">✕</button>
+            </div>
+            <!-- Last frame (optional) -->
+            <div class="i2v-frame-slot" id="slot-last" onclick="triggerFrameInput('last')">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-dim)">
+                <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+                <path d="M21 15l-5-5L5 21"/>
+              </svg>
+              <span class="slot-label">LAST FRAME</span>
+              <span class="slot-hint">optional</span>
+              <button class="slot-clear" onclick="clearFrame(event,'last')" title="Remove">✕</button>
+            </div>
+          </div>
+          <input type="file" id="input-first-frame" accept="image/*" style="display:none">
+          <input type="file" id="input-last-frame"  accept="image/*" style="display:none">
+        </div>
+
+        <!-- Prompt + params -->
+        <div class="i2v-input-row">
+          <div class="i2v-field grow">
+            <label>PROMPT (optional)</label>
+            <input type="text" id="i2v-prompt" placeholder="描述视频内容，如：角色缓慢眨眼，轻微呼吸...">
+          </div>
+          <div class="i2v-field">
+            <label>DURATION (s)</label>
+            <select id="i2v-duration">
+              <option value="2">2s</option>
+              <option value="3">3s</option>
+              <option value="5">5s</option>
+              <option value="8">8s</option>
+              <option value="10" selected>10s</option>
+              <option value="12">12s</option>
+              <option value="15">15s</option>
+            </select>
+          </div>
+          <div class="i2v-field">
+            <label>RESOLUTION</label>
+            <select id="i2v-resolution">
+              <option value="480P">480P</option>
+              <option value="720P" selected>720P</option>
+              <option value="1080P">1080P</option>
+            </select>
+          </div>
+          <button id="i2v-submit-btn" onclick="i2vSubmit()">▶ GENERATE</button>
+        </div>
+        <div id="i2v-submit-msg"></div>
+
+        <!-- Task list -->
+        <div>
+          <div class="i2v-section-label" style="display:flex;justify-content:space-between;align-items:center">
+            <span>GENERATION TASKS</span>
+            <button onclick="i2vRefreshAll()" style="font-family:'Orbitron',sans-serif;font-size:9px;letter-spacing:1px;padding:3px 10px;background:transparent;border:1px solid var(--border);color:var(--text-dim);cursor:pointer;">↻ REFRESH ALL</button>
+          </div>
+          <div id="i2v-task-list">
+            <div style="font-size:11px;color:var(--text-dim);padding:10px 0;">No tasks yet.</div>
+          </div>
+        </div>
+
+      </div><!-- /i2v-body -->
+    </div><!-- /tab-generate -->
+
+    <!-- ── Tab: Files ── -->
+    <div id="i2v-tab-files" class="i2v-tab-panel">
+      <div class="i2v-body">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <div class="i2v-section-label" style="margin:0">CHARACTER VIDEO FILES</div>
+          <button onclick="filesLoadCharacterVideos()" style="font-family:'Orbitron',sans-serif;font-size:9px;letter-spacing:1px;padding:3px 10px;background:transparent;border:1px solid var(--border);color:var(--text-dim);cursor:pointer;">↻ REFRESH</button>
+        </div>
+        <p style="font-size:10px;color:var(--text-dim);margin-bottom:12px;line-height:1.6;">
+          Browse and manage files in the <code style="color:var(--primary)">character_videos/</code> folder.
+          MP4 files can be set as the idle background animation.
+        </p>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+          <input type="file" id="cv-upload-input" style="display:none" multiple>
+          <button class="file-upload-btn" onclick="document.getElementById('cv-upload-input').click()">⊕ UPLOAD FILES</button>
+          <span id="cv-upload-status" style="font-size:10px;color:var(--text-dim);"></span>
+        </div>
+        <div class="file-browser" id="cv-file-list">
+          <div style="color:var(--text-dim);font-size:11px;">Loading...</div>
+        </div>
+      </div>
+    </div><!-- /tab-files -->
+
+  </div>
+</div>
+
+<script>
+/* ============================================================ Settings Config */
+const SETTINGS_DEFAULTS = {
+  postAudioDelay:  800,   // ms — delay after audio ends before switching to idle
+  exprFadeOut:     0.80,  // s  — fade out duration of expression → idle crossfade
+  exprFadeIn:      0.55,  // s  — fade in duration of expression video on new response
+  audioVolume:     100,   // %  — playback volume (0–100)
+  chipHighlightMs: 3000,  // ms — duration chips stay highlighted
+};
+let cfg = Object.assign({}, SETTINGS_DEFAULTS);
+
+function loadSettingsFromStorage() {
+  try {
+    const saved = localStorage.getItem('bajiSettings');
+    if (saved) Object.assign(cfg, JSON.parse(saved));
+  } catch (e) {}
+}
+function saveSettingsToStorage() {
+  try { localStorage.setItem('bajiSettings', JSON.stringify(cfg)); } catch (e) {}
+}
+function openSettingsModal() {
+  // Sync sliders to current cfg
+  document.getElementById('sl-postAudioDelay').value = cfg.postAudioDelay;
+  document.getElementById('val-postAudioDelay').textContent = cfg.postAudioDelay + ' ms';
+  document.getElementById('sl-exprFadeOut').value = cfg.exprFadeOut;
+  document.getElementById('val-exprFadeOut').textContent = cfg.exprFadeOut.toFixed(2) + ' s';
+  document.getElementById('sl-exprFadeIn').value = cfg.exprFadeIn;
+  document.getElementById('val-exprFadeIn').textContent = cfg.exprFadeIn.toFixed(2) + ' s';
+  document.getElementById('sl-audioVolume').value = cfg.audioVolume;
+  document.getElementById('val-audioVolume').textContent = cfg.audioVolume + ' %';
+  document.getElementById('sl-chipHighlightMs').value = cfg.chipHighlightMs;
+  document.getElementById('val-chipHighlightMs').textContent = cfg.chipHighlightMs + ' ms';
+  document.getElementById('settings-modal').classList.add('open');
+}
+function closeSettingsModal() {
+  document.getElementById('settings-modal').classList.remove('open');
+}
+function updateSetting(key, rawVal, displayId, unit, decimals = 0) {
+  const num = parseFloat(rawVal);
+  cfg[key]  = num;
+  const display = decimals > 0 ? num.toFixed(decimals) : Math.round(num).toString();
+  document.getElementById(displayId).textContent = display + ' ' + unit;
+  saveSettingsToStorage();
+}
+function resetSettings() {
+  Object.assign(cfg, SETTINGS_DEFAULTS);
+  saveSettingsToStorage();
+  openSettingsModal(); // re-sync sliders
+}
+
+/* ============================================================ State */
+let characterReady = false;
+let isRecording    = false;
+let mediaRecorder  = null;
+let audioChunks    = [];
+let currentAudio   = null;
+let turnCount      = 0;
+let vizAnimFrame   = null;
+let analyserNode   = null;
+let audioCtx       = null;
+
+/* ============================================================ Init */
+window.addEventListener('DOMContentLoaded', () => {
+  loadSettingsFromStorage();
+  document.getElementById('settings-modal').addEventListener('click', e => {
+    if (e.target === document.getElementById('settings-modal')) closeSettingsModal();
+  });
+  setupDragDrop();
+  setupFileInput();
+  setupMicButton();
+  checkStatus();
+});
+
+async function checkStatus() {
+  try {
+    const res  = await fetch('/api/status');
+    const data = await res.json();
+    if (data.character_id && data.videos_ready) {
+      await activateCharacter(data.character_id);
+    } else {
+      // No character yet — show main UI with upload accessible via header button
+      setStatus('error', 'NO CHARACTER');
+      setFooterStatus('Click ⊕ CHANGE CHARACTER to upload a portrait');
+    }
+  } catch (e) {
+    setStatus('error', 'CONNECTION ERROR');
+    setFooterStatus('Cannot reach server');
+  }
+}
+
+/* ============================================================ Upload mode toggle */
+function showUploadMode() {
+  document.getElementById('upload-pane').classList.remove('hidden');
+  document.getElementById('companion-img').style.display = 'none';
+  // Disable interaction
+  document.getElementById('mic-btn').classList.add('disabled');
+  document.getElementById('text-input').disabled = true;
+  document.getElementById('send-btn').disabled   = true;
+  characterReady = false;
+}
+
+function showDisplayMode() {
+  document.getElementById('upload-pane').classList.add('hidden');
+}
+
+/* ============================================================ Drag & drop */
+function setupDragDrop() {
+  const zone = document.getElementById('drop-zone');
+  zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('dragover'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) handleFileSelected(file);
+  });
+}
+
+function setupFileInput() {
+  document.getElementById('file-input').addEventListener('change', function() {
+    if (this.files[0]) handleFileSelected(this.files[0]);
+  });
+}
+
+function handleFileSelected(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('preview-img').src = e.target.result;
+    document.getElementById('preview-name').textContent = file.name;
+    document.getElementById('upload-preview').style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+  document.getElementById('btn-upload').disabled = false;
+  document.getElementById('file-input')._selectedFile = file;
+}
+
+document.getElementById('btn-upload').addEventListener('click', async () => {
+  const fi   = document.getElementById('file-input');
+  const file = fi._selectedFile || fi.files[0];
+  if (!file) return;
+
+  const btn      = document.getElementById('btn-upload');
+  const progress = document.getElementById('upload-progress');
+  btn.disabled   = true;
+  progress.innerHTML = '<span class="spinner"></span> Generating character states...';
+
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    const res  = await fetch('/api/upload-character', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById('char-states').textContent = data.placeholders;
+      progress.textContent = `✓ ${data.placeholders} states generated`;
+      await activateCharacter(data.character_id);
+    } else {
+      progress.textContent = 'Upload failed.';
+      btn.disabled = false;
+    }
+  } catch (e) {
+    progress.textContent = `Error: ${e.message}`;
+    btn.disabled = false;
+  }
+});
+
+/* ============================================================ Activate */
+async function activateCharacter(charId) {
+  characterReady = true;
+  document.getElementById('char-id-display').textContent = charId;
+  document.getElementById('char-status').textContent     = 'ONLINE';
+  document.getElementById('companion-name').textContent  = 'BAJI';
+  document.getElementById('companion-sub').textContent   = 'AI COMPANION · READY';
+
+  const img   = document.getElementById('companion-img');
+  img.src     = `/api/character?t=${Date.now()}`;
+  // Pre-fetch the character image in the background; idle video takes visual priority
+  img.onload  = () => {};
+  img.onerror = () => {};
+
+  document.getElementById('mic-btn').classList.remove('disabled');
+  document.getElementById('text-input').disabled = false;
+  document.getElementById('send-btn').disabled   = false;
+  setStatus('ready', 'READY');
+  setFooterStatus('Press & hold mic to speak');
+  document.getElementById('upload-pane').classList.add('hidden');
+  playIdleVideo();
+}
+
+/* ============================================================ Status helpers */
+function setStatus(state, label) {
+  const dot = document.getElementById('status-dot');
+  dot.className = ''; dot.classList.add(state);
+  document.getElementById('status-label').textContent = label;
+}
+function setFooterStatus(msg) { document.getElementById('footer-status').textContent = msg; }
+function setPipeline(asr, llm, tts) {
+  document.getElementById('pipe-asr').textContent = asr;
+  document.getElementById('pipe-llm').textContent = llm;
+  document.getElementById('pipe-tts').textContent = tts;
+}
+
+/* ============================================================ Mic */
+function setupMicButton() {
+  const btn = document.getElementById('mic-btn');
+  btn.addEventListener('mousedown',  startRecording);
+  btn.addEventListener('mouseup',    stopRecording);
+  btn.addEventListener('mouseleave', stopRecording);
+  btn.addEventListener('touchstart', e => { e.preventDefault(); startRecording(); });
+  btn.addEventListener('touchend',   e => { e.preventDefault(); stopRecording(); });
+}
+
+async function startRecording() {
+  if (!characterReady || isRecording) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    isRecording  = true; audioChunks = [];
+
+    audioCtx     = new AudioContext();
+    const source = audioCtx.createMediaStreamSource(stream);
+    analyserNode = audioCtx.createAnalyser(); analyserNode.fftSize = 64;
+    source.connect(analyserNode);
+    startVizAnimation();
+
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
+      : MediaRecorder.isTypeSupported('audio/ogg;codecs=opus') ? 'audio/ogg;codecs=opus' : 'audio/webm';
+
+    mediaRecorder = new MediaRecorder(stream, { mimeType });
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+    mediaRecorder.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      audioCtx && audioCtx.close(); stopVizAnimation();
+      await processAudio(new Blob(audioChunks, { type: mimeType }), mimeType);
+    };
+    mediaRecorder.start();
+
+    document.getElementById('mic-btn').classList.add('recording');
+    document.getElementById('icon-mic').style.display  = 'none';
+    document.getElementById('icon-stop').style.display = 'block';
+    setStatus('thinking', 'RECORDING...');
+    setFooterStatus('Recording... Release to send');
+  } catch (e) { alert('Microphone access denied: ' + e.message); }
+}
+
+function stopRecording() {
+  if (!isRecording) return; isRecording = false;
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  document.getElementById('mic-btn').classList.remove('recording');
+  document.getElementById('icon-mic').style.display  = 'block';
+  document.getElementById('icon-stop').style.display = 'none';
+  setStatus('thinking', 'PROCESSING...'); setFooterStatus('Processing...');
+}
+
+/* ============================================================ Text input */
+document.getElementById('text-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendText(); });
+async function sendText() {
+  const input = document.getElementById('text-input');
+  const text  = input.value.trim();
+  if (!text || !characterReady) return;
+  input.value = '';
+  addHistoryMessage('user', text, {}); updateTurnCount();
+  setStatus('thinking', 'THINKING...'); setFooterStatus('Asking LLM...');
+  setPipeline('TEXT', '···', '···');
+  try {
+    const res  = await fetch('/api/chat-text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+    if (!res.ok) { const err = await res.json(); throw new Error(err.detail || res.statusText); }
+    handleChatResponse(await res.json(), true);
+  } catch (e) { setStatus('error', 'ERROR'); setFooterStatus('Error: ' + e.message); }
+}
+
+/* ============================================================ Audio processing */
+async function processAudio(blob, mimeType) {
+  setFooterStatus('Sending to ASR...'); setPipeline('···', '···', '···');
+  try {
+    const fd = new FormData();
+    fd.append('audio', blob, 'recording.webm');
+    const res  = await fetch('/api/chat', { method: 'POST', body: fd });
+    if (!res.ok) { const err = await res.json(); throw new Error(err.detail || res.statusText); }
+    handleChatResponse(await res.json());
+  } catch (e) {
+    setStatus('error', 'ERROR'); setFooterStatus('Error: ' + e.message);
+    setPipeline('ERR', '—', '—');
+  }
+}
+
+/* ============================================================ Handle response */
+function handleChatResponse(data, skipUserAdd = false) {
+  setPipeline('OK', 'OK', data.audio_base64 ? 'OK' : 'SKIP');
+  if (!skipUserAdd && data.transcript) { addHistoryMessage('user', data.transcript, {}); updateTurnCount(); }
+
+  addHistoryMessage('ai', data.response_text, {
+    expression: data.expression, pose: data.pose, speech_seconds: data.speech_seconds,
+  });
+  updateTurnCount();
+
+  document.getElementById('info-expr').textContent  = data.expression    || '—';
+  document.getElementById('info-pose').textContent  = data.pose          || '—';
+  document.getElementById('info-secs').textContent  = data.speech_seconds ? `~${data.speech_seconds}s` : '—';
+  document.getElementById('info-vfile').textContent = data.video_filename || 'none';
+
+  updateChips(data.expression, data.pose, data.speech_seconds);
+
+  if (data.video_filename) switchCompanionImage(`/api/videos/${data.video_filename}`);
+  if (data.audio_base64)   playBase64Audio(data.audio_base64, data.speech_seconds || 3);
+  else { setStatus('ready', 'READY (no audio)'); setFooterStatus('Response received (TTS unavailable)'); }
+}
+
+/* ============================================================ Idle video */
+function playIdleVideo() {
+  const idleVid = document.getElementById('idle-video');
+  const exprVid = document.getElementById('companion-video');
+  const img     = document.getElementById('companion-img');
+  img.style.display = 'none';
+
+  // Ensure idle layer is loaded and running
+  if (!idleVid._idleReady) {
+    idleVid._idleReady = true;
+    idleVid.src = `/api/videos/idle.mp4?t=${Date.now()}`;
+    idleVid.play().catch(() => {});
+  }
+  idleVid.style.display = 'block';
+  idleVid.style.opacity = '1';
+
+  // Remove expression indicator and crossfade to idle
+  document.getElementById('companion-frame').classList.remove('expressing');
+  if (exprVid.style.display !== 'none') {
+    const fadeMs = Math.round(cfg.exprFadeOut * 1000);
+    exprVid.style.transition = `opacity ${cfg.exprFadeOut}s ease`;
+    exprVid.style.opacity = '0';
+    setTimeout(() => {
+      exprVid.style.display = 'none';
+      exprVid.style.transition = `opacity ${cfg.exprFadeIn}s ease`;
+      exprVid.pause();
+      exprVid.removeAttribute('src');
+    }, fadeMs + 50);
+  }
+}
+
+/* ============================================================ Companion image/video */
+function switchCompanionImage(src) {
+  const frame   = document.getElementById('companion-frame');
+  const exprVid = document.getElementById('companion-video');
+  const idleVid = document.getElementById('idle-video');
+  const img     = document.getElementById('companion-img');
+  // Use video element for .mp4 files
+  if (src.match(/\.mp4/i)) {
+    exprVid.loop    = false;
+    exprVid.src     = src + `?t=${Date.now()}`;
+    exprVid.style.transition = `opacity ${cfg.exprFadeIn}s ease`;
+    exprVid.style.opacity = '0';
+    exprVid.style.display = 'block';
+    img.style.display     = 'none';
+    exprVid.load();
+    exprVid.play().catch(() => {});
+    // Fade in expression video over the idle layer
+    requestAnimationFrame(() => requestAnimationFrame(() => { exprVid.style.opacity = '1'; }));
+    frame.classList.add('expressing');
+  } else {
+    img.style.opacity = '0';
+    setTimeout(() => { img.src = src + `?t=${Date.now()}`; img.onload = () => { img.style.opacity = '1'; }; }, 200);
+    exprVid.style.display = 'none';
+    idleVid.style.display = 'none';
+    img.style.display     = 'block';
+  }
+  frame.classList.add('speaking');
+}
+function setCompanionSilent() {
+  document.getElementById('companion-frame').classList.remove('speaking');
+  document.getElementById('companion-sub').textContent = 'AI COMPANION · READY';
+  playIdleVideo();
+}
+
+/* ============================================================ Audio playback */
+function playBase64Audio(b64, estimatedSecs) {
+  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+  const bytes  = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const url    = URL.createObjectURL(new Blob([bytes], { type: 'audio/mp3' }));
+  currentAudio = new Audio(url);
+  currentAudio.volume = cfg.audioVolume / 100;
+  setStatus('speaking', 'SPEAKING');
+  document.getElementById('companion-sub').textContent = 'AI COMPANION · SPEAKING';
+  setFooterStatus(`Playing response (~${estimatedSecs}s)`);
+  activateVizBars();
+  currentAudio.play();
+  currentAudio.onended = () => {
+    URL.revokeObjectURL(url);
+    setStatus('ready', 'READY'); setFooterStatus('Press & hold mic to speak');
+    deactivateVizBars();
+    setTimeout(() => setCompanionSilent(), cfg.postAudioDelay);
+  };
+}
+
+/* ============================================================ Visualizer */
+function startVizAnimation() {
+  const bars = document.querySelectorAll('.viz-bar');
+  if (!analyserNode) return;
+  const data = new Uint8Array(analyserNode.frequencyBinCount);
+  function draw() {
+    analyserNode.getByteFrequencyData(data);
+    bars.forEach((bar, i) => { bar.style.height = Math.max(4, (data[i*2]||0)/4) + 'px'; });
+    vizAnimFrame = requestAnimationFrame(draw);
+  }
+  draw();
+}
+function stopVizAnimation() { if (vizAnimFrame) cancelAnimationFrame(vizAnimFrame); document.querySelectorAll('.viz-bar').forEach(b => b.style.height = '4px'); }
+function activateVizBars()   { document.querySelectorAll('.viz-bar').forEach(b => b.classList.add('active')); }
+function deactivateVizBars() { document.querySelectorAll('.viz-bar').forEach(b => b.classList.remove('active')); }
+
+/* ============================================================ Chips */
+function updateChips(expr, pose, secs) {
+  document.getElementById('chip-expr-val').textContent = expr || 'neutral';
+  document.getElementById('chip-pose-val').textContent = pose || 'idle';
+  document.getElementById('chip-dur-val').textContent  = secs ? `~${secs}s` : '—';
+  ['chip-expr','chip-pose','chip-dur'].forEach(id => {
+    const el = document.getElementById(id);
+    el.classList.add('active');
+    setTimeout(() => el.classList.remove('active'), cfg.chipHighlightMs);
+  });
+}
+
+/* ============================================================ History */
+function addHistoryMessage(role, text, meta) {
+  const list   = document.getElementById('history-list');
+  const msg    = document.createElement('div'); msg.className = `msg ${role} animate-in`;
+  const label  = document.createElement('div'); label.className = 'msg-label'; label.textContent = role === 'user' ? '▶ YOU' : '◀ BAJI';
+  const bubble = document.createElement('div'); bubble.className = 'msg-bubble'; bubble.textContent = text;
+  msg.appendChild(label); msg.appendChild(bubble);
+  if (role === 'ai' && meta.expression) {
+    const metaDiv = document.createElement('div'); metaDiv.className = 'msg-meta';
+    [['EXPR', meta.expression], ['POSE', meta.pose], ['TIME', meta.speech_seconds ? `~${meta.speech_seconds}s` : null]].forEach(([k, v]) => {
+      if (!v) return;
+      const tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = `${k} ${v}`; metaDiv.appendChild(tag);
+    });
+    msg.appendChild(metaDiv);
+  }
+  list.appendChild(msg); list.scrollTop = list.scrollHeight;
+}
+function updateTurnCount() { turnCount++; document.getElementById('turn-count').textContent = `${Math.floor(turnCount/2)} TURNS`; }
+
+/* ============================================================ I2V Modal */
+let i2vFrames = { first: null, last: null };
+let i2vActiveTab = 'generate';
+
+function openI2VModal() {
+  document.getElementById('i2v-modal').classList.add('open');
+  if (i2vActiveTab === 'generate') i2vLoadTasks();
+  else if (i2vActiveTab === 'files') filesLoadCharacterVideos();
+}
+function closeI2VModal() {
+  document.getElementById('i2v-modal').classList.remove('open');
+}
+// Close on backdrop click
+document.getElementById('i2v-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('i2v-modal')) closeI2VModal();
+});
+
+function switchI2VTab(tab) {
+  i2vActiveTab = tab;
+  document.querySelectorAll('.i2v-tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tab);
+  });
+  document.querySelectorAll('.i2v-tab-panel').forEach(panel => {
+    panel.classList.toggle('active', panel.id === `i2v-tab-${tab}`);
+  });
+  if (tab === 'files') filesLoadCharacterVideos();
+  if (tab === 'generate') i2vLoadTasks();
+}
+
+function triggerFrameInput(slot) {
+  document.getElementById(`input-${slot}-frame`).click();
+}
+
+['first', 'last'].forEach(slot => {
+  document.getElementById(`input-${slot}-frame`).addEventListener('change', function () {
+    const file = this.files[0];
+    if (!file) return;
+    i2vFrames[slot] = file;
+    const slotEl = document.getElementById(`slot-${slot}`);
+    slotEl.classList.add('has-file');
+    // Show preview
+    const existing = slotEl.querySelector('img');
+    if (existing) existing.remove();
+    const prev = document.createElement('img');
+    prev.src = URL.createObjectURL(file);
+    slotEl.insertBefore(prev, slotEl.querySelector('.slot-label'));
+  });
+});
+
+function clearFrame(evt, slot) {
+  evt.stopPropagation();
+  i2vFrames[slot] = null;
+  const slotEl = document.getElementById(`slot-${slot}`);
+  slotEl.classList.remove('has-file');
+  const img = slotEl.querySelector('img');
+  if (img) img.remove();
+  document.getElementById(`input-${slot}-frame`).value = '';
+}
+
+async function i2vSubmit() {
+  if (!i2vFrames.first) { setI2VMsg('First frame is required.', true); return; }
+  const confirmed = confirm(
+    '⚠️ Confirm Submission\n\n' +
+    'Generating a video will:\n' +
+    '• Consume API credits (costs money)\n' +
+    '• Take several minutes to complete\n' +
+    '• Cannot be cancelled once it starts running\n\n' +
+    'Are you sure you want to submit this request?'
+  );
+  if (!confirmed) return;
+  const btn = document.getElementById('i2v-submit-btn');
+  btn.disabled = true;
+  setI2VMsg('<span class="spinner"></span> Uploading frames & submitting task...');
+
+  try {
+    const fd = new FormData();
+    fd.append('first_frame', i2vFrames.first, i2vFrames.first.name);
+    if (i2vFrames.last) fd.append('last_frame', i2vFrames.last, i2vFrames.last.name);
+    fd.append('prompt',     document.getElementById('i2v-prompt').value);
+    fd.append('duration',   document.getElementById('i2v-duration').value);
+    fd.append('resolution', document.getElementById('i2v-resolution').value);
+    const apiKeyVal = (document.getElementById('i2v-api-key').value || '').trim();
+    if (apiKeyVal) fd.append('api_key', apiKeyVal);
+
+    const res  = await fetch('/api/i2v/submit', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+
+    setI2VMsg(`✓ Task submitted — ID: ${data.task_id} (${data.status})`);
+    await i2vLoadTasks();
+  } catch (e) {
+    setI2VMsg(`Error: ${e.message}`, true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function setI2VMsg(html, isError = false) {
+  const el = document.getElementById('i2v-submit-msg');
+  el.innerHTML = html;
+  el.style.color = isError ? 'var(--warn)' : 'var(--text-dim)';
+}
+
+async function i2vLoadTasks() {
+  try {
+    const res  = await fetch('/api/i2v/tasks');
+    const data = await res.json();
+    renderI2VTasks(data.tasks);
+  } catch (e) { /* silent */ }
+}
+
+async function i2vRefreshAll() {
+  const res   = await fetch('/api/i2v/tasks');
+  const data  = await res.json();
+  const tasks = data.tasks.filter(t => !['SUCCEEDED','FAILED','CANCELED'].includes(t.status));
+  for (const t of tasks) {
+    await fetch(`/api/i2v/task/${t.task_id}`).catch(() => {});
+  }
+  await i2vLoadTasks();
+}
+
+function renderI2VTasks(tasks) {
+  const list = document.getElementById('i2v-task-list');
+  list.innerHTML = '';
+  if (!tasks || tasks.length === 0) {
+    list.innerHTML = '<div style="font-size:11px;color:var(--text-dim);padding:10px 0;">No tasks yet.</div>';
+    return;
+  }
+  // Sort newest first (by created_at if available)
+  tasks.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+  tasks.forEach(t => {
+    const row      = document.createElement('div'); row.className = 'i2v-task-row';
+    const idEl     = document.createElement('span'); idEl.className = 'i2v-task-id'; idEl.textContent = t.task_id.slice(0, 12) + '…';
+    const statusEl = document.createElement('span'); statusEl.className = `i2v-task-status ${t.status}`; statusEl.textContent = t.status;
+    const meta     = document.createElement('span'); meta.className = 'i2v-task-meta';
+    const dur = t.duration ? `${t.duration}s` : '';
+    const res = t.resolution || '';
+    const prompt = t.prompt ? `"${t.prompt.slice(0,30)}${t.prompt.length>30?'…':''}"` : '';
+    meta.textContent = [dur, res, prompt].filter(Boolean).join(' · ');
+
+    // Show error details for failed tasks
+    let errorEl = null;
+    if (t.status === 'FAILED' && (t.error_code || t.error_message)) {
+      errorEl = document.createElement('div');
+      errorEl.style.cssText = 'width:100%;margin-top:4px;padding:6px 8px;background:rgba(255,107,53,0.07);border:1px solid rgba(255,107,53,0.3);font-size:10px;color:var(--warn);line-height:1.5;word-break:break-word;';
+      const codeStr = t.error_code ? `[${t.error_code}] ` : '';
+      errorEl.textContent = `${codeStr}${t.error_message || 'Unknown error'}`;
+    }
+    const actions  = document.createElement('div'); actions.className = 'i2v-task-actions';
+
+    if (!['SUCCEEDED','FAILED','CANCELED'].includes(t.status)) {
+      const pollBtn = document.createElement('button'); pollBtn.className = 'i2v-poll-btn';
+      pollBtn.textContent = '↻ CHECK'; pollBtn.title = 'Poll status';
+      pollBtn.onclick = async () => {
+        pollBtn.disabled = true; pollBtn.textContent = '···';
+        try {
+          await fetch(`/api/i2v/task/${t.task_id}`);
+          await i2vLoadTasks();
+        } finally { pollBtn.disabled = false; }
+      };
+      actions.appendChild(pollBtn);
+
+      if (t.status === 'PENDING') {
+        const cancelBtn = document.createElement('button'); cancelBtn.className = 'i2v-poll-btn';
+        cancelBtn.textContent = '✕ CANCEL'; cancelBtn.title = 'Cancel this queued task';
+        cancelBtn.style.cssText = 'color:var(--warn);border-color:var(--warn);opacity:0.8;';
+        cancelBtn.onclick = async () => {
+          cancelBtn.disabled = true; cancelBtn.textContent = '···';
+          try {
+            const r = await fetch(`/api/i2v/task/${t.task_id}/cancel`, { method: 'POST' });
+            if (!r.ok) {
+              const d = await r.json().catch(() => ({}));
+              alert('Cancel failed: ' + (d.detail || r.statusText));
+              cancelBtn.disabled = false; cancelBtn.textContent = '✕ CANCEL';
+            } else {
+              await i2vLoadTasks();
+            }
+          } catch (e) {
+            alert('Cancel error: ' + e);
+            cancelBtn.disabled = false; cancelBtn.textContent = '✕ CANCEL';
+          }
+        };
+        actions.appendChild(cancelBtn);
+      }
+    }
+
+    if (t.status === 'SUCCEEDED' && t.local_file) {
+      const setBtn = document.createElement('button'); setBtn.className = 'i2v-set-idle-btn';
+      setBtn.textContent = '★ SET AS IDLE';
+      setBtn.onclick = async () => {
+        setBtn.disabled = true;
+        try {
+          const r = await fetch('/api/backgrounds/set-idle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: t.local_file }),
+          });
+          const d = await r.json();
+          if (d.success) {
+            setBtn.textContent = '✓ IDLE SET';
+            // Reload idle video if character is active
+            if (characterReady) reloadIdleVideo();
+          }
+        } finally { setBtn.disabled = false; }
+      };
+      actions.appendChild(setBtn);
+
+      // small video preview link
+      const link = document.createElement('a');
+      link.href = `/backgrounds/${t.local_file}`; link.target = '_blank';
+      link.style.cssText = 'font-size:9px;color:var(--primary);text-decoration:none;align-self:center;';
+      link.textContent = '▶ VIEW';
+      actions.insertBefore(link, actions.firstChild);
+    }
+
+    row.append(idEl, statusEl, meta, actions);
+    if (errorEl) row.appendChild(errorEl);
+    list.appendChild(row);
+  });
+}
+
+function reloadIdleVideo() {
+  const idleVid = document.getElementById('idle-video');
+  idleVid._idleReady = false;
+  idleVid.style.opacity = '0';
+  setTimeout(() => {
+    idleVid.src = `/api/videos/idle.mp4?t=${Date.now()}`;
+    idleVid.load();
+    idleVid.play().catch(() => {});
+    idleVid.style.opacity = '1';
+    idleVid._idleReady = true;
+  }, 400);
+}
+
+/* ============================================================ File Browser */
+async function filesLoadCharacterVideos() {
+  const list = document.getElementById('cv-file-list');
+  list.innerHTML = '<div style="color:var(--text-dim);font-size:11px;">Loading...</div>';
+  try {
+    const res  = await fetch('/api/files/character_videos');
+    const data = await res.json();
+    renderFileList(data.files, list);
+  } catch (e) {
+    list.innerHTML = `<div style="color:var(--warn);font-size:11px;">Error: ${e.message}</div>`;
+  }
+}
+
+function renderFileList(files, list) {
+  list.innerHTML = '';
+  if (!files || files.length === 0) {
+    list.innerHTML = '<div style="color:var(--text-dim);font-size:11px;padding:10px 0;">No files found.</div>';
+    return;
+  }
+  files.forEach(f => {
+    const row = document.createElement('div');
+    row.className = 'file-browser-row';
+
+    const ext = (f.name.split('.').pop() || '').toLowerCase();
+    const isVideo = ['mp4', 'webm'].includes(ext);
+    const isImage = ['jpg', 'jpeg', 'png', 'webp'].includes(ext);
+    const typeClass = isVideo ? 'mp4' : isImage ? 'img' : ext === 'json' ? 'json' : 'other';
+
+    const typeEl = document.createElement('span');
+    typeEl.className = `file-ftype ${typeClass}`;
+    typeEl.textContent = ext.toUpperCase();
+
+    const nameEl = document.createElement('span');
+    nameEl.className = 'file-fname';
+    nameEl.textContent = f.name;
+    nameEl.title = f.name;
+
+    const sizeEl = document.createElement('span');
+    sizeEl.className = 'file-fsize';
+    sizeEl.textContent = formatFileSize(f.size);
+
+    const actions = document.createElement('div');
+    actions.style.cssText = 'display:flex;gap:4px;flex-shrink:0;';
+
+    const playBtn = document.createElement('button');
+    playBtn.className = 'file-play-btn';
+    playBtn.textContent = '▶ PLAY';
+    playBtn.title = 'Play / open file';
+    playBtn.onclick = () => window.open(`/api/videos/${encodeURIComponent(f.name)}`, '_blank');
+    actions.appendChild(playBtn);
+
+    const dlBtn = document.createElement('button');
+    dlBtn.className = 'file-dl-btn';
+    dlBtn.textContent = '↓ DL';
+    dlBtn.title = 'Download file';
+    dlBtn.onclick = () => {
+      const a = document.createElement('a');
+      a.href = `/api/videos/${encodeURIComponent(f.name)}`;
+      a.download = f.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    };
+    actions.appendChild(dlBtn);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'file-del-btn';
+    delBtn.textContent = '✕ DEL';
+    delBtn.title = 'Delete file';
+    delBtn.onclick = async () => {
+      if (!confirm(`Delete "${f.name}"?`)) return;
+      delBtn.disabled = true;
+      try {
+        const r = await fetch(`/api/files/character_videos/${encodeURIComponent(f.name)}`, { method: 'DELETE' });
+        if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+        row.remove();
+      } catch (e) {
+        alert('Delete failed: ' + e.message);
+        delBtn.disabled = false;
+      }
+    };
+    actions.appendChild(delBtn);
+
+    row.append(typeEl, nameEl, sizeEl, actions);
+    list.appendChild(row);
+  });
+}
+
+document.getElementById('cv-upload-input').addEventListener('change', async function () {
+  const files = Array.from(this.files);
+  if (!files.length) return;
+  const status = document.getElementById('cv-upload-status');
+  status.innerHTML = '<span class="spinner"></span> Uploading...';
+  let success = 0, fail = 0;
+  for (const file of files) {
+    try {
+      const fd = new FormData();
+      fd.append('file', file, file.name);
+      const r = await fetch('/api/files/character_videos/upload', { method: 'POST', body: fd });
+      if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+      success++;
+    } catch (e) {
+      fail++;
+    }
+  }
+  this.value = '';
+  status.textContent = `✓ ${success} uploaded${fail ? `, ${fail} failed` : ''}`;
+  filesLoadCharacterVideos();
+});
+
+function formatFileSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+</script>
+
+</body>
+</html>
