@@ -437,6 +437,24 @@
       color: var(--text-dim); cursor: pointer; transition: all 0.2s; margin-top: 4px; align-self: flex-start;
     }
     .settings-reset-btn:hover { border-color: var(--warn); color: var(--warn); }
+
+    /* ---------------------------------------------------------------- Personality Textarea */
+    #personality-textarea {
+      width: 100%; min-height: 100px; resize: vertical;
+      background: rgba(0,212,255,0.04); border: 1px solid var(--border);
+      color: var(--text); font-family: 'Space Mono', monospace; font-size: 12px;
+      padding: 10px 12px; outline: none; transition: border-color 0.2s; line-height: 1.6;
+    }
+    #personality-textarea:focus { border-color: var(--border-hi); }
+    #personality-save-btn {
+      font-family: 'Orbitron', sans-serif; font-size: 9px; letter-spacing: 1.5px;
+      padding: 7px 16px; background: rgba(0,212,255,0.1); border: 1px solid var(--border-hi);
+      color: var(--primary); cursor: pointer; transition: all 0.2s; align-self: flex-start;
+      clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%);
+    }
+    #personality-save-btn:hover { background: rgba(0,212,255,0.2); box-shadow: var(--glow); }
+    #personality-save-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    #personality-status { font-size: 10px; color: var(--text-dim); min-height: 14px; }
   </style>
 </head>
 <body>
@@ -681,6 +699,42 @@
       </div>
 
       <button class="settings-reset-btn" onclick="resetSettings()">↺ RESET TO DEFAULTS</button>
+
+      <!-- Group: Companion Personality -->
+      <div class="settings-group">
+        <div class="settings-group-title">COMPANION PERSONALITY</div>
+        <div class="settings-param">
+          <div class="settings-param-desc">
+            Describe who your companion is — her name, personality, language style, and tone.
+            This text is sent as the opening of the AI's instructions.
+          </div>
+          <textarea id="personality-textarea" spellcheck="false" placeholder="e.g. 你是一个亲切、聪明的AI伴侣，名叫巴吉（BAJI）。请用自然、温暖的中文与用户交流。"></textarea>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:6px;">
+            <button id="personality-save-btn" onclick="savePersonality()">✓ SAVE PERSONALITY</button>
+            <span id="personality-status"></span>
+          </div>
+        </div>
+
+        <div class="settings-param" style="margin-top:14px;">
+          <div class="settings-param-header">
+            <span class="settings-param-name">TTS VOICE</span>
+          </div>
+          <div class="settings-param-desc">
+            CosyVoice voice name used for speech synthesis (e.g. <code style="color:var(--primary)">longyingxiao</code>, <code style="color:var(--primary)">longxiaochun_v2</code>).
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+            <input type="text" id="voice-input" spellcheck="false" placeholder="longyingxiao"
+              style="flex:1;background:rgba(0,212,255,0.04);border:1px solid var(--border);color:var(--text);font-family:'Space Mono',monospace;font-size:12px;padding:8px 12px;outline:none;transition:border-color 0.2s;"
+              onfocus="this.style.borderColor='var(--border-hi)'" onblur="this.style.borderColor='var(--border)'">
+            <button id="voice-save-btn" onclick="saveVoice()"
+              style="font-family:'Orbitron',sans-serif;font-size:9px;letter-spacing:1.5px;padding:8px 14px;background:rgba(0,212,255,0.1);border:1px solid var(--border-hi);color:var(--primary);cursor:pointer;transition:all 0.2s;clip-path:polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%);"
+              onmouseover="this.style.background='rgba(0,212,255,0.2)'" onmouseout="this.style.background='rgba(0,212,255,0.1)'">
+              ✓ SAVE
+            </button>
+          </div>
+          <span id="voice-status" style="font-size:10px;color:var(--text-dim);min-height:14px;display:block;margin-top:4px;"></span>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -843,6 +897,8 @@ function openSettingsModal() {
   document.getElementById('sl-chipHighlightMs').value = cfg.chipHighlightMs;
   document.getElementById('val-chipHighlightMs').textContent = cfg.chipHighlightMs + ' ms';
   document.getElementById('settings-modal').classList.add('open');
+  loadPersonality();
+  loadVoice();
 }
 function closeSettingsModal() {
   document.getElementById('settings-modal').classList.remove('open');
@@ -858,6 +914,87 @@ function resetSettings() {
   Object.assign(cfg, SETTINGS_DEFAULTS);
   saveSettingsToStorage();
   openSettingsModal(); // re-sync sliders
+}
+
+async function loadPersonality() {
+  try {
+    const res = await fetch('/api/personality');
+    const data = await res.json();
+    document.getElementById('personality-textarea').value = data.personality || '';
+    document.getElementById('personality-status').textContent = '';
+  } catch (e) {
+    document.getElementById('personality-status').textContent = 'Failed to load.';
+  }
+}
+
+async function savePersonality() {
+  const text = document.getElementById('personality-textarea').value.trim();
+  if (!text) { document.getElementById('personality-status').textContent = 'Cannot be empty.'; return; }
+  const btn = document.getElementById('personality-save-btn');
+  const statusEl = document.getElementById('personality-status');
+  btn.disabled = true;
+  statusEl.textContent = 'Saving…';
+  try {
+    const res = await fetch('/api/personality', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ personality: text }),
+    });
+    if (res.ok) {
+      statusEl.style.color = 'var(--accent)';
+      statusEl.textContent = '✓ Saved';
+      setTimeout(() => { statusEl.textContent = ''; statusEl.style.color = ''; }, 2000);
+    } else {
+      statusEl.style.color = 'var(--warn)';
+      statusEl.textContent = 'Save failed.';
+    }
+  } catch (e) {
+    statusEl.style.color = 'var(--warn)';
+    statusEl.textContent = 'Network error.';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function loadVoice() {
+  try {
+    const res = await fetch('/api/voice');
+    const data = await res.json();
+    document.getElementById('voice-input').value = data.voice || '';
+    document.getElementById('voice-status').textContent = '';
+  } catch (e) {
+    document.getElementById('voice-status').textContent = 'Failed to load.';
+  }
+}
+
+async function saveVoice() {
+  const voice = document.getElementById('voice-input').value.trim();
+  if (!voice) { document.getElementById('voice-status').textContent = 'Cannot be empty.'; return; }
+  const btn = document.getElementById('voice-save-btn');
+  const statusEl = document.getElementById('voice-status');
+  btn.disabled = true;
+  statusEl.style.color = 'var(--text-dim)';
+  statusEl.textContent = 'Saving…';
+  try {
+    const res = await fetch('/api/voice', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ voice }),
+    });
+    if (res.ok) {
+      statusEl.style.color = 'var(--accent)';
+      statusEl.textContent = '✓ Saved';
+      setTimeout(() => { statusEl.textContent = ''; statusEl.style.color = ''; }, 2000);
+    } else {
+      statusEl.style.color = 'var(--warn)';
+      statusEl.textContent = 'Save failed.';
+    }
+  } catch (e) {
+    statusEl.style.color = 'var(--warn)';
+    statusEl.textContent = 'Network error.';
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 /* ============================================================ State */
